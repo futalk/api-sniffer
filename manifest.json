@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "API Sniffer - 接口监听工具",
+  "version": "1.0.0",
+  "description": "监听浏览器所有 XHR/Fetch 请求，记录接口 URL、参数、请求头和返回数据，支持导出到本地",
+  "permissions": [
+    "storage",
+    "downloads",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
