@@ -391,6 +391,24 @@
       outline: none;
       border-color: #1a73e8;
     }
+    .debug-toggle-btn {
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.8);
+      border: 1px solid rgba(255,255,255,0.25);
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+    .debug-toggle-btn:hover {
+      background: rgba(255,255,255,0.25);
+      color: #fff;
+    }
+    .debug-toggle-btn.active {
+      background: rgba(255,255,255,0.3);
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -399,6 +417,7 @@
   <div class="header">
     <h1>API Sniffer</h1>
     <span class="count" id="count">0 条记录</span>
+    <button id="btnDebugLog" class="debug-toggle-btn" title="调试日志">日志</button>
   </div>
 
   <div class="toolbar">

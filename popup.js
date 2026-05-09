@@ -4,7 +4,6 @@
   function log(msg) {
     const el = document.getElementById('debugLog');
     if (el) {
-      el.style.display = 'block';
       el.textContent += msg + '\n';
     }
     console.log(msg);
@@ -32,6 +31,7 @@
     toggleDomainOnly: document.getElementById('toggleDomainOnly'),
     toggleAutoSave: document.getElementById('toggleAutoSave'),
     savePath: document.getElementById('savePath'),
+    btnDebugLog: document.getElementById('btnDebugLog'),
   };
 
   if (!els.list) {
@@ -286,6 +286,17 @@
       savePathTimer = setTimeout(() => {
         chrome.storage.local.set({ savePath: els.savePath.value.trim() });
       }, 500);
+    });
+  }
+
+  if (els.btnDebugLog) {
+    els.btnDebugLog.addEventListener('click', () => {
+      const el = document.getElementById('debugLog');
+      if (el) {
+        const visible = el.style.display === 'block';
+        el.style.display = visible ? 'none' : 'block';
+        els.btnDebugLog.classList.toggle('active', !visible);
+      }
     });
   }
 
