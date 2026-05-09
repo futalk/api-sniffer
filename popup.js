@@ -271,7 +271,7 @@
       const v = result.autoSave === true;
       els.toggleAutoSave.checked = v;
       els.savePath.value = result.savePath || '';
-      els.savePath.placeholder = '子目录: api-sniffer';
+      els.savePath.placeholder = '下载子目录: api-sniffer';
     });
 
     els.toggleAutoSave.addEventListener('change', () => {
@@ -284,7 +284,12 @@
     els.savePath.addEventListener('input', () => {
       clearTimeout(savePathTimer);
       savePathTimer = setTimeout(() => {
-        chrome.storage.local.set({ savePath: els.savePath.value.trim() });
+        // 清理绝对路径前缀（盘符、斜杠等），只保留纯子目录名
+        let val = els.savePath.value.trim();
+        val = val.replace(/^[A-Za-z]:[\\/]+/, '');  // C:\  D:/
+        val = val.replace(/^[\\/]+/, '');            // \  /
+        val = val.replace(/[\\/:*?"<>|]/g, '_');     // 非法字符
+        chrome.storage.local.set({ savePath: val });
       }, 500);
     });
   }

@@ -162,11 +162,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 function safeFilename(str) {
-  return String(str).replace(/[\\/:*?"<>|]/g, '_').substring(0, 100);
+  return String(str).replace(/[\\/:*?"<>|]/g, '_').replace(/^[A-Za-z]:/, '').substring(0, 100);
 }
 
 function saveRecordToFile(record, savePath) {
   try {
+    // 确保子目录名不含非法字符，去掉可能的绝对路径前缀
+    const cleanSavePath = safeFilename(savePath).replace(/^_+/, '') || 'api-sniffer';
+
     const url = record.url || 'unknown';
     let domain = 'unknown';
     let pathname = '';
@@ -179,7 +182,7 @@ function saveRecordToFile(record, savePath) {
     const ts = record.timestamp ? record.timestamp.replace(/[:.]/g, '-') : Date.now();
     const method = record.method || 'GET';
     const cleanPath = safeFilename(pathname.replace(/^\//, '').replace(/\//g, '_') || 'root');
-    const dir = safeFilename(savePath) + '/' + safeFilename(domain);
+    const dir = cleanSavePath + '/' + safeFilename(domain);
     const filename = dir + '/' + ts + '_' + method + '_' + cleanPath + '.json';
 
     const content = JSON.stringify(record, null, 2);
@@ -194,7 +197,7 @@ function saveRecordToFile(record, savePath) {
       if (chrome.runtime.lastError) {
         console.error('[API Sniffer] auto-save failed:', chrome.runtime.lastError.message);
       } else {
-        console.log('[API Sniffer] auto-saved:', filename, 'id:', downloadId);
+        console.log('[API Sniffer] auto-saved: 下载文件夹/' + filename, 'id:', downloadId);
       }
     });
   } catch (err) {
