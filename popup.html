@@ -379,6 +379,18 @@
     .toggle-switch input:checked + .toggle-slider::before {
       transform: translateX(16px);
     }
+    .save-path-input {
+      width: 140px;
+      padding: 3px 8px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-left: auto;
+    }
+    .save-path-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+    }
   </style>
 </head>
 <body>
@@ -409,6 +421,15 @@
       <span class="toggle-slider"></span>
     </label>
     <label class="toggle-label" for="toggleDomainOnly">仅监控当前域名</label>
+  </div>
+
+  <div class="toggle-row">
+    <label class="toggle-switch">
+      <input type="checkbox" id="toggleAutoSave">
+      <span class="toggle-slider"></span>
+    </label>
+    <label class="toggle-label" for="toggleAutoSave">实时保存到本地</label>
+    <input type="text" class="save-path-input" id="savePath" placeholder="子目录: api-sniffer">
   </div>
 
   <div class="toggle-row">

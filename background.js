@@ -12,6 +12,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.storage.local.set({ apiRecords: records }, () => {
         console.log('[API Sniffer] record saved, total:', records.length);
         chrome.runtime.sendMessage({ action: 'recordsUpdated' }).catch(() => {});
+
+        // 实时保存到本地
+        chrome.storage.local.get(['autoSave', 'savePath'], (settings) => {
+          if (settings.autoSave !== true) return;
+          saveRecordToFile(message.record, settings.savePath || 'api-sniffer');
+        });
       });
     });
     return;
@@ -154,6 +160,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
+
+function safeFilename(str) {
+  return String(str).replace(/[\\/:*?"<>|]/g, '_').substring(0, 100);
+}
+
+function saveRecordToFile(record, savePath) {
+  try {
+    const url = record.url || 'unknown';
+    let domain = 'unknown';
+    let pathname = '';
+    try {
+      const u = new URL(url);
+      domain = u.hostname;
+      pathname = u.pathname;
+    } catch (e) {}
+
+    const ts = record.timestamp ? record.timestamp.replace(/[:.]/g, '-') : Date.now();
+    const method = record.method || 'GET';
+    const cleanPath = safeFilename(pathname.replace(/^\//, '').replace(/\//g, '_') || 'root');
+    const dir = safeFilename(savePath) + '/' + safeFilename(domain);
+    const filename = dir + '/' + ts + '_' + method + '_' + cleanPath + '.json';
+
+    const content = JSON.stringify(record, null, 2);
+    const encoded = btoa(unescape(encodeURIComponent(content)));
+    const dataUrl = 'data:application/json;base64,' + encoded;
+
+    chrome.downloads.download({
+      url: dataUrl,
+      filename: filename,
+      saveAs: false
+    }, (downloadId) => {
+      if (chrome.runtime.lastError) {
+        console.error('[API Sniffer] auto-save failed:', chrome.runtime.lastError.message);
+      } else {
+        console.log('[API Sniffer] auto-saved:', filename, 'id:', downloadId);
+      }
+    });
+  } catch (err) {
+    console.error('[API Sniffer] auto-save exception:', err);
+  }
+}
 
 async function handleReplayRequest(record) {
   const { method, url, requestHeaders, requestBody } = record;

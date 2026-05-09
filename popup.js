@@ -30,6 +30,8 @@
     btnSummary: document.getElementById('btnSummary'),
     btnPause: document.getElementById('btnPause'),
     toggleDomainOnly: document.getElementById('toggleDomainOnly'),
+    toggleAutoSave: document.getElementById('toggleAutoSave'),
+    savePath: document.getElementById('savePath'),
   };
 
   if (!els.list) {
@@ -261,6 +263,29 @@
       chrome.runtime.sendMessage({ action: 'setDomainOnly', value: v }, (response) => {
         log('[API Sniffer] setDomainOnly: ' + v + ' response: ' + JSON.stringify(response));
       });
+    });
+  }
+
+  if (els.toggleAutoSave && els.savePath) {
+    chrome.storage.local.get(['autoSave', 'savePath'], (result) => {
+      const v = result.autoSave === true;
+      els.toggleAutoSave.checked = v;
+      els.savePath.value = result.savePath || '';
+      els.savePath.placeholder = '子目录: api-sniffer';
+    });
+
+    els.toggleAutoSave.addEventListener('change', () => {
+      const v = els.toggleAutoSave.checked;
+      chrome.storage.local.set({ autoSave: v });
+      log('[API Sniffer] autoSave set to: ' + v);
+    });
+
+    let savePathTimer;
+    els.savePath.addEventListener('input', () => {
+      clearTimeout(savePathTimer);
+      savePathTimer = setTimeout(() => {
+        chrome.storage.local.set({ savePath: els.savePath.value.trim() });
+      }, 500);
     });
   }
 
