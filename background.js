@@ -78,6 +78,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === 'replayRequest') {
+    handleReplayRequest(message.record).then(result => {
+      sendResponse(result);
+    }).catch(err => {
+      sendResponse({ status: 0, statusText: 'Replay Error', headers: {}, body: err.message || String(err), duration: 0 });
+    });
+    return true;
+  }
+
   if (message.action === 'downloadRecords') {
     const format = message.format || 'json';
     const providedRecords = message.records;
@@ -101,6 +110,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           content = JSON.stringify(har, null, 2);
           mimeType = 'application/json';
           filename = `api_records_${Date.now()}.har`;
+        } else if (format === 'postman') {
+          const collection = buildPostmanCollection(records);
+          content = JSON.stringify(collection, null, 2);
+          mimeType = 'application/json';
+          filename = `postman_collection_${Date.now()}.json`;
         } else if (format === 'csv') {
           content = '\uFEFF' + buildCSV(records);
           mimeType = 'text/csv;charset=utf-8';
@@ -141,6 +155,56 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+async function handleReplayRequest(record) {
+  const { method, url, requestHeaders, requestBody } = record;
+  const startTime = performance.now();
+
+  const fetchOptions = {
+    method: method || 'GET',
+    headers: requestHeaders || {},
+    credentials: 'include'
+  };
+
+  // GET/HEAD 请求不应带 body
+  const hasBody = method && !['GET', 'HEAD'].includes(method.toUpperCase());
+  if (hasBody && requestBody != null) {
+    if (typeof requestBody === 'string') {
+      fetchOptions.body = requestBody;
+    } else {
+      fetchOptions.body = JSON.stringify(requestBody);
+      if (!fetchOptions.headers['Content-Type'] && !fetchOptions.headers['content-type']) {
+        fetchOptions.headers['Content-Type'] = 'application/json';
+      }
+    }
+  }
+
+  const resp = await fetch(url, fetchOptions);
+  const duration = parseFloat((performance.now() - startTime).toFixed(1));
+
+  const responseHeaders = {};
+  resp.headers.forEach((v, k) => { responseHeaders[k] = v; });
+
+  let responseBody;
+  const contentType = resp.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    responseBody = await resp.json();
+  } else {
+    responseBody = await resp.text();
+  }
+
+  if (typeof responseBody === 'string' && responseBody.length > 10240) {
+    responseBody = responseBody.substring(0, 10240) + '\n\n[已截断，原长度 ' + responseBody.length + ' 字符]';
+  }
+
+  return {
+    status: resp.status,
+    statusText: resp.statusText,
+    headers: responseHeaders,
+    body: responseBody,
+    duration: duration
+  };
+}
+
 function buildHAR(records) {
   const entries = records.map(r => {
     const startTime = new Date(r.timestamp).getTime();
@@ -175,6 +239,85 @@ function buildHAR(records) {
       creator: { name: 'API Sniffer', version: '1.0.0' },
       entries: entries
     }
+  };
+}
+
+function parseUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    return {
+      protocol: u.protocol.replace(':', ''),
+      host: u.hostname.split('.'),
+      port: u.port || undefined,
+      path: u.pathname.split('/').filter(Boolean),
+      query: Array.from(u.searchParams.entries()).map(([key, value]) => ({ key, value })),
+      raw: rawUrl
+    };
+  } catch (e) {
+    return { protocol: 'https', host: [''], path: [rawUrl], query: [], raw: rawUrl };
+  }
+}
+
+function formatBody(requestBody) {
+  if (requestBody == null) return undefined;
+  if (typeof requestBody === 'string') {
+    try {
+      JSON.parse(requestBody);
+      return { mode: 'raw', raw: requestBody, options: { raw: { language: 'json' } } };
+    } catch (e) {
+      return { mode: 'raw', raw: requestBody };
+    }
+  }
+  return { mode: 'raw', raw: JSON.stringify(requestBody), options: { raw: { language: 'json' } } };
+}
+
+function buildPostmanCollection(records) {
+  const items = records.map((r, idx) => {
+    const urlObj = parseUrl(r.url || '');
+    const headerList = Object.entries(r.requestHeaders || {}).map(([key, value]) => ({
+      key, value: String(value), type: 'text'
+    }));
+
+    const item = {
+      name: (r.method || 'GET') + ' ' + (r.url || ''),
+      request: {
+        method: r.method || 'GET',
+        header: headerList,
+        url: {
+          raw: r.url || '',
+          protocol: urlObj.protocol,
+          host: urlObj.host,
+          port: urlObj.port,
+          path: urlObj.path,
+          query: urlObj.query
+        }
+      },
+      response: [{
+        name: 'Recorded Response',
+        status: r.statusText || 'OK',
+        code: r.status || 200,
+        header: Object.entries(r.responseHeaders || {}).map(([key, value]) => ({
+          key, value: String(value)
+        })),
+        body: typeof r.responseBody === 'string' ? r.responseBody : JSON.stringify(r.responseBody, null, 2)
+      }]
+    };
+
+    const body = formatBody(r.requestBody);
+    if (body) {
+      item.request.body = body;
+    }
+
+    return item;
+  });
+
+  return {
+    info: {
+      name: 'API Sniffer Export',
+      description: 'Exported from API Sniffer extension. Total requests: ' + records.length,
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
+    },
+    item: items
   };
 }
 

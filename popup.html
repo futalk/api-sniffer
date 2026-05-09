@@ -146,6 +146,99 @@
     .del-btn:hover {
       color: #c62828;
     }
+    .replay-btn {
+      color: #1a73e8;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 2px 8px;
+      border: 1px solid #c6dafc;
+      border-radius: 3px;
+      background: #e8f0fe;
+      user-select: none;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .replay-btn:hover {
+      background: #d2e3fc;
+      border-color: #1a73e8;
+    }
+    .replay-btn.loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    .replay-editor {
+      margin-top: 6px;
+    }
+    .replay-editor textarea {
+      width: 100%;
+      min-height: 80px;
+      background: #263238;
+      color: #ffcc80;
+      border: 1px solid #455a64;
+      border-radius: 4px;
+      padding: 8px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 11px;
+      resize: vertical;
+    }
+    .replay-editor .btn-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .replay-send-btn {
+      padding: 4px 14px;
+      border: 1px solid #1a73e8;
+      background: #1a73e8;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .replay-send-btn:hover {
+      background: #1557b0;
+    }
+    .replay-send-btn:disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .replay-cancel-btn {
+      padding: 4px 14px;
+      border: 1px solid #dadce0;
+      background: #fff;
+      color: #555;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+    .replay-cancel-btn:hover {
+      background: #f1f3f4;
+    }
+    .replay-result {
+      margin-top: 10px;
+      border: 1px solid #c6dafc;
+      border-radius: 4px;
+      background: #f8fbff;
+      padding: 10px;
+    }
+    .replay-result .replay-status {
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .replay-result .replay-status.ok { color: #2e7d32; }
+    .replay-result .replay-status.err { color: #c62828; }
+    .replay-result .replay-meta {
+      color: #888;
+      font-size: 11px;
+      margin-left: 8px;
+    }
+    .replay-result .section {
+      margin-top: 8px;
+    }
     .record-body {
       display: none;
       border-top: 1px solid #e0e0e0;
@@ -304,6 +397,7 @@
       <input type="text" id="filterUrl" placeholder="过滤 URL...">
       <button id="btnJson" class="primary">导出 JSON</button>
       <button id="btnHar">导出 HAR</button>
+      <button id="btnPostman">导出 Postman</button>
       <button id="btnCsv">导出 CSV</button>
       <button id="btnSummary">导出摘要</button>
     </div>

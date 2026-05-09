@@ -25,6 +25,7 @@
     filterUrl: document.getElementById('filterUrl'),
     btnJson: document.getElementById('btnJson'),
     btnHar: document.getElementById('btnHar'),
+    btnPostman: document.getElementById('btnPostman'),
     btnCsv: document.getElementById('btnCsv'),
     btnSummary: document.getElementById('btnSummary'),
     btnPause: document.getElementById('btnPause'),
@@ -109,6 +110,7 @@
           <span class="status ${statusClass}">${r.status || 0}</span>
           <span class="url" title="${r.url || ''}">${r.url || ''}</span>
           <span class="meta">${r.duration != null ? r.duration + 'ms' : ''}</span>
+          <span class="replay-btn" data-id="${r.id || ''}" title="重放此请求">重放</span>
           <span class="del-btn" data-id="${r.id || ''}" title="删除此条">×</span>
         </div>
         <div class="record-body">
@@ -121,8 +123,9 @@
             <div class="code">${safeJson(r.requestHeaders || {})}</div>
           </div>
           <div class="section">
-            <div class="section-title">请求体 <button class="copy-btn">复制</button></div>
+            <div class="section-title">请求体 <button class="copy-btn">复制</button> <button class="replay-edit-btn" data-id="${r.id || ''}">编辑重放</button></div>
             <div class="code">${r.requestBody != null ? safeJson(r.requestBody) : '(无)'}</div>
+            <div class="replay-editor" data-id="${r.id || ''}" style="display:none;"></div>
           </div>
           <div class="section">
             <div class="section-title">响应头 <button class="copy-btn">复制</button></div>
@@ -136,6 +139,7 @@
             <div class="section-title">时间戳</div>
             <div class="code">${r.timestamp || ''}</div>
           </div>
+          <div class="replay-result" data-id="${r.id || ''}" style="display:none;"></div>
         </div>
       `;
 
@@ -204,6 +208,7 @@
 
   if (els.btnJson) els.btnJson.addEventListener('click', () => download('json'));
   if (els.btnHar) els.btnHar.addEventListener('click', () => download('har'));
+  if (els.btnPostman) els.btnPostman.addEventListener('click', () => download('postman'));
   if (els.btnCsv) els.btnCsv.addEventListener('click', () => download('csv'));
   if (els.btnSummary) els.btnSummary.addEventListener('click', () => download('summary'));
 
@@ -261,7 +266,7 @@
 
   log('[API Sniffer] popup.js initialized');
 
-  // 列表点击事件委托（展开详情 / 删除）
+  // 列表点击事件委托（展开详情 / 删除 / 重放）
   els.list.addEventListener('click', (e) => {
     const delBtn = e.target.closest('.del-btn');
     if (delBtn) {
@@ -271,6 +276,26 @@
         chrome.runtime.sendMessage({ action: 'deleteRecord', id: id }, () => {
           loadRecords();
         });
+      }
+      return;
+    }
+    const replayBtn = e.target.closest('.replay-btn');
+    if (replayBtn) {
+      e.stopPropagation();
+      const id = replayBtn.dataset.id;
+      const record = allRecords.find(r => r.id === id);
+      if (record) {
+        doReplay(record, replayBtn);
+      }
+      return;
+    }
+    const replayEditBtn = e.target.closest('.replay-edit-btn');
+    if (replayEditBtn) {
+      e.stopPropagation();
+      const id = replayEditBtn.dataset.id;
+      const record = allRecords.find(r => r.id === id);
+      if (record) {
+        toggleReplayEditor(record, replayEditBtn);
       }
       return;
     }
@@ -296,6 +321,115 @@
       }
     }
   });
+
+  function getBodyText(record) {
+    if (record.requestBody == null) return '';
+    if (typeof record.requestBody === 'string') {
+      try { return JSON.stringify(JSON.parse(record.requestBody), null, 2); } catch (e) { return record.requestBody; }
+    }
+    try { return JSON.stringify(record.requestBody, null, 2); } catch (e) { return String(record.requestBody); }
+  }
+
+  function doReplay(record, btnEl, editedBody) {
+    const replayBtn = btnEl || els.list.querySelector('.replay-btn[data-id="' + record.id + '"]');
+    if (replayBtn) {
+      replayBtn.classList.add('loading');
+      replayBtn.textContent = '发送中...';
+    }
+
+    let body = editedBody !== undefined ? editedBody : record.requestBody;
+    if (typeof body === 'string' && body.trim()) {
+      try { body = JSON.parse(body); } catch (e) { /* keep as string */ }
+    }
+
+    chrome.runtime.sendMessage({
+      action: 'replayRequest',
+      record: {
+        method: record.method,
+        url: record.url,
+        requestHeaders: record.requestHeaders || {},
+        requestBody: body
+      }
+    }, (response) => {
+      if (replayBtn) {
+        replayBtn.classList.remove('loading');
+        replayBtn.textContent = '重放';
+      }
+      if (chrome.runtime.lastError) {
+        log('[API Sniffer] replay error: ' + chrome.runtime.lastError.message);
+        return;
+      }
+      showReplayResult(record, response);
+    });
+  }
+
+  function showReplayResult(record, response) {
+    let resultEl = els.list.querySelector('.replay-result[data-id="' + record.id + '"]');
+    if (!resultEl) return;
+
+    const statusClass = response.status >= 200 && response.status < 300 ? 'ok' : 'err';
+    const respBody = typeof response.body === 'string' ? response.body : JSON.stringify(response.body, null, 2);
+    const headersText = typeof response.headers === 'string' ? response.headers : JSON.stringify(response.headers, null, 2);
+
+    resultEl.innerHTML = `
+      <div style="display:flex;align-items:center;margin-bottom:8px;">
+        <span class="replay-status ${statusClass}">${response.status || 0} ${response.statusText || ''}</span>
+        <span class="replay-meta">${response.duration != null ? response.duration + 'ms' : ''}</span>
+      </div>
+      <div class="section">
+        <div class="section-title">响应头 <button class="copy-btn">复制</button></div>
+        <div class="code">${escapeHtml(headersText)}</div>
+      </div>
+      <div class="section">
+        <div class="section-title">响应体 <button class="copy-btn">复制</button></div>
+        <div class="code">${escapeHtml(respBody)}</div>
+      </div>
+    `;
+    resultEl.style.display = 'block';
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function toggleReplayEditor(record, btnEl) {
+    const section = btnEl.closest('.section');
+    const editorEl = section.querySelector('.replay-editor');
+    if (!editorEl) return;
+
+    if (editorEl.style.display === 'block') {
+      editorEl.style.display = 'none';
+      editorEl.innerHTML = '';
+      return;
+    }
+
+    editorEl.innerHTML = `
+      <textarea>${escapeHtml(getBodyText(record))}</textarea>
+      <div class="btn-row">
+        <button class="replay-send-btn" data-id="${record.id}">发送</button>
+        <button class="replay-cancel-btn" data-id="${record.id}">取消</button>
+      </div>
+    `;
+    editorEl.style.display = 'block';
+
+    const sendBtn = editorEl.querySelector('.replay-send-btn');
+    const cancelBtn = editorEl.querySelector('.replay-cancel-btn');
+    const textarea = editorEl.querySelector('textarea');
+
+    sendBtn.addEventListener('click', () => {
+      const editedBody = textarea.value;
+      sendBtn.disabled = true;
+      sendBtn.textContent = '发送中...';
+      doReplay(record, null, editedBody);
+      editorEl.style.display = 'none';
+      editorEl.innerHTML = '';
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      editorEl.style.display = 'none';
+      editorEl.innerHTML = '';
+    });
+  }
 
   loadRecords();
 
